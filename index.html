@@ -1,353 +1,50 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>3D final_project</title>
-</head>
-<body>
-    <div id="app"></div>
+
+    <link rel="stylesheet" href="style.css" />
+
     <script type="importmap">
         {
             "imports": {
-                "three":"https://unpkg.com/three@0.145.0/build/three.module.js",
+                "three": "https://unpkg.com/three@0.145.0/build/three.module.js",
                 "three-mesh-bvh": "https://unpkg.com/three-mesh-bvh@^0.5.10/build/index.module.js",
-                "three/module/":"https://unpkg.com/three@0.145.0/examples/jsm/"
+                "three/module/": "https://unpkg.com/three@0.145.0/examples/jsm/"
             }
         }
     </script>
-    <script type="module">
-        import * as THREE from "three";
-        import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast, MeshBVHVisualizer } from 'three-mesh-bvh';  
-        import { OrbitControls } from 'three/module/controls/OrbitControls.js';
-        import { STLLoader } from 'three/module/loaders/STLLoader.js';
-        import { GUI } from 'three/module/libs/lil-gui.module.min.js';
-        import { OBJExporter } from 'three/module/exporters/OBJExporter.js';
-        import { STLExporter } from 'three/module/exporters/STLExporter.js';
-        import { SimplifyModifier } from 'three/module/modifiers/SimplifyModifier.js';
-        THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;//計算模型的包圍盒，加速模型的碰撞檢測
-		//THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
-		//THREE.Mesh.prototype.raycast = acceleratedRaycast;
-        //讀取模型
-        var model = document.createElement("input");
-        model.setAttribute("type", "file");
-        model.onchange = function (e) {
-            var file = e.target.files[0];
-            var filename=file.name;
-            if(filename.indexOf('.stl')!=-1){
-                if (e.target.files.length == 1) {
-                var reader = new FileReader();
-                reader.onloadend = function (e) {
-                    var loader = new STLLoader();
-                    var geometry = loader.parse(e.target.result);
-                    //console.log(geometry);
-                    draw(geometry);
-                };
-                reader.readAsBinaryString(file);
-                }
-            }/*else if(filename.indexOf('.obj')!=-1){ 讀取obj格式，但obj格式不須材質，如果和stl一起讀取，會出現錯誤，所以暫時不讀取obj格式
-                var reader = new FileReader();
-                reader.onloadend = function (e) {
-                    var loader=new THREE.OBJLoader();
-                    var geometry=loader.parse(e.target.result);
-                    console.log(geometry);
-                    draw(geometry);
-                };
-                reader.readAsText(file);
+</head>
+<body>
+    <div class="page">
+        <header class="top-bar">
+            <div class="top-bar-inner">
+                <div class="title-block">
+                    <h1 class="app-title">3D STL 工具</h1>
+                    <p class="app-subtitle">選擇模型來源並載入後開始操作</p>
+                </div>
 
-            }*/
-        };
-        document.getElementById('app').appendChild(model);//添加模型選擇按鈕
-        document.getElementById('app').append('上傳stl binary檔案，檔案載入需要時間!---------右鍵平移、滾輪縮放、左鍵旋轉');//添加說明
-        var view = document.createElement("div");
-        view.setAttribute("id", "view");
-        document.getElementById('app').appendChild(view);//添加模型顯示區域
-        //讀取模型end
-        //繪製模型
-        let renderer,scene,camera,helper,material,light1,light2,controls,mesh,simplified;
-        function initrenderer(){//初始化渲染器
-            renderer = new THREE.WebGLRenderer();//渲染器
-            renderer.setSize(window.innerWidth, window.innerHeight);//渲染器大小
-            renderer.setClearColor(0xbbbbbb, 1);//渲染器背景顏色
-            document.getElementById("app").appendChild(renderer.domElement);//渲染器添加到app中
-            renderer.antialias = true,//抗鋸齒
-			renderer.localClippingEnabled = true; //模型可被裁切
-            
-        }
-        function initscene(){//初始化場景
-            scene = new THREE.Scene();//場景
-        }
-        function initcamera(){//初始化相機
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);//相機
-            camera.position.set(0,10,15);//設定相機位置
-            camera.lookAt(0, 0, 0);//相機觀察方向
-        }
-        const clipPlanes = [//添加剪切面
-				new THREE.Plane( new THREE.Vector3( 1, 0, 0 ), 5.5 ),
-				new THREE.Plane( new THREE.Vector3( 0, - 1, 0 ), 5.5 ),
-				new THREE.Plane( new THREE.Vector3( 0, 0, - 1 ), 5.5 )
-		];
-        function initmaterial(){//初始化材質
-            material = new THREE.MeshLambertMaterial({ 
-                color: 0xffffff,
-                side:THREE.DoubleSide,
-                clippingPlanes: clipPlanes,//裁切的平面
-                clipIntersection: false//是否裁切 
-            });//材質
-            material.flatShading = true;//平滑
-        }
+                <div class="control-block">
+                    <label>模型來源</label>
+                    <select id="modelSource" class="select">
+                        <option value="upload">上傳 STL 檔</option>
+                        <option value="default">預設模型（2.stl）</option>
+                    </select>
+                    <button id="loadModelBtn" class="btn-primary">載入模型</button>
+                </div>
+                <p class="hint">操作提示：左鍵旋轉、右鍵平移、滾輪縮放</p>
+            </div>
+        </header>
 
-        function initlight(){//初始化光源
-            light1 = new THREE.DirectionalLight(0xffffff, 1.0);//光源
-            light1.position.set(50, 50, 300);//光源位置
-            scene.add(light1);//光源添加到場景中
-            light2 = new THREE.DirectionalLight(0xffffff, 1.0);//光源
-            light2.position.set(-50, -50, -300);//光源位置
-            scene.add(light2);//光源添加到場景中
-        }
-        function initControls() {//初始化控制器
+        <input type="file" id="fileInput" accept=".stl" style="display:none" />
 
-            controls = new OrbitControls( camera, renderer.domElement );//控制器
+        <div id="app"></div>
+        <div id="gui-container"></div>
+    </div>
 
-            controls.enableDamping = true;//是否啟用阻尼效果
-            //滑鼠拖動靈敏度
-            //controls.dampingFactor = 0.25;
-            controls.enableZoom = true;//是否啟用縮放
-            //是否自動旋轉
-            controls.autoRotate = false;
-            controls.autoRotateSpeed = 1;
-            //相機距離原點的最近距離
-            controls.minDistance  = 1;
-            //相機距離原點的最遠距離
-            controls.maxDistance  = 1000;
-            //是否啟用右鍵拖拽
-            controls.enablePan = true;
-        };
-        function initModel(geometry) {//初始化模型
-            /*如果要讀取OBJ格式，需使用下方代碼
-            scene.add(geometry)*/
-            geometry.center();//模型居中
-            mesh = new THREE.Mesh(geometry, material);//模型
-            scene.add(mesh);//模型添加到場景中
-            mesh.rotation.set(4.5, 0, 1);//模型旋轉初始位置
-        }
-        function initsimpliModel() {//初始化模型
-            var modifier=new SimplifyModifier();//初始化簡化模型
-            simplified = mesh.clone();//複製模型
-            simplified.material=simplified.material.clone();//複製材質
-            const count = Math.floor( simplified.geometry.attributes.position.count*0.1);//簡化模型百分比
-            simplified.geometry = modifier.modify( simplified.geometry,count);//簡化模型
-            simplified.visible = false;//預設隱藏簡化模型
-            scene.add(simplified);//簡化模型添加到場景中
-            simplified.rotation.set(4.5, 0, 1);//模型旋轉初始位置
-        }
-        function animate() {//更新模型
-            renderer.render(scene, camera);
-            controls.update();
-            requestAnimationFrame(animate);
-        };
-        function draw(geometry) {//繪製模型
-            initrenderer();//初始化渲染器
-            initscene();//初始化場景
-            initcamera();//初始化相機
-            initmaterial();//初始化材質
-            initlight();//初始化光源
-            initControls();//初始化控制器
-            initModel(geometry);//初始化模型
-            initsimpliModel();//初始化簡化模型
-            animate();
-            const gui=new GUI();//添加控制面板
-            //添加gui控制項
-            var control=new function(){
-                this.reset=function(){
-                    //mesh.position.x=0;
-                    position_x.setValue(0);
-                    resize_scale.setValue(1);
-                    light_intensity.setValue(1);
-                }
-                this.visible=true;//模型可見
-                this.simplified_visible=false;//簡化模型可見
-                this.position=0;//模型位置
-                this.helpers=false;//輔助線
-                this.AxesHelper=false;//軸線
-                this.ExportOBJ=function(){//導出OBJ格式
-                    var exporter=new OBJExporter();
-                    const result=exporter.parse(mesh);
-                    var data=new Blob( [ result ], { type: 'text/plain' } )
-                    save(data,'model.obj')
-                };
-                this.ExportSTL=function(){//導出STL格式
-                    var exporter=new STLExporter();
-                    const result=exporter.parse(mesh,{binary:true});
-                    var data=new Blob( [ result ], { type: 'text/plain' } )
-                    save(data,'model.stl')
-                };
-                this.newShading='平滑著色';
-                this.intensity=1;
-                this.clipIntersection=false;//交集or差集
-                this.planeConstant=5.5;//模型裁切相交點               
-                this.displayhelper=false;
-                this.helperDepth=10;
-                this.scale=1;
-            };    
-            function save(result,filename){//導出檔案
-                let newLink = document.createElement("a");
-                newLink.download = filename;
-                newLink.href = window.webkitURL.createObjectURL(result);
-                newLink.target = "_blank"; 
-                newLink.click();
-                console.log(newLink);
-            }
-            gui.add(control,'reset').name('重置').listen();
-            var position_x=gui.add(control,'position',0,100).name('模型位置').listen().onChange(function(value){
-                mesh.position.x=value;
-            });  
-            gui.add(control,'visible').name('原始模型顯示').listen().onChange(function(value){
-                mesh.visible=value;
-            });
-            gui.add(control,'simplified_visible').name('簡化模型顯示').listen().onChange(function(value){
-                simplified.visible=value;
-            });
-            //AxesHelper
-            var AxesHelper = new THREE.AxesHelper(100);
-            scene.add(AxesHelper);
-            AxesHelper.visible=false;
-            gui.add(control,'AxesHelper').name('顯示坐標軸XYZ').listen().onChange(function(value){
-                AxesHelper.visible=value;
-            });
-
-            //材質顏色
-            var MeterialColor = {
-                color1: '#ffffff', // No_simplified
-                color2: '#ffffff' // simplified
-            };
-            gui.addColor(MeterialColor, 'color1').name('原始模型顏色').onChange(function (value) {
-                material.color.set(value);
-            });
-            gui.addColor(MeterialColor, 'color2').name('簡化模型顏色').onChange(function (value) {
-                simplified.material.color.set(value);
-            });
-            gui.add(control,'ExportOBJ').name('輸出OBJ檔案').listen().onChange(function(){
-            });
-            gui.add(control,'ExportSTL').name('輸出STL檔案').listen().onChange(function(){
-            });
-            gui.add( control, 'newShading', ['框線', '平滑著色']).name( '著色模式' ).onChange( function(value){//材質模式
-                if(value=='框線'){
-                    material.wireframe=true;
-                    simplified.material.wireframe=true;
-                }
-                else{
-                    material.wireframe=false;
-                    simplified.material.wireframe=false;
-                }
-            } );
-            var resize_scale = gui.add(control,'scale',1,10).name('大小').listen().onChange(function(value){
-                mesh.scale.set( value, value, value );
-                simplified.scale.set( value, value, value );
-            });
-            var light_intensity = gui.add(control,'intensity',0,10).name('亮度').listen().onChange(function(value){
-                light1.intensity = value;
-                light2.intensity = value;
-            });
-            
-            //剪切面
-            const helpers = new THREE.Group();//添加剪切面群組
-			helpers.add( new THREE.PlaneHelper( clipPlanes[ 0 ], 11, 0xff0000 ) );//添加剪切面輔助線
-			helpers.add( new THREE.PlaneHelper( clipPlanes[ 1 ], 11, 0x00ff00 ) );//添加剪切面輔助線
-			helpers.add( new THREE.PlaneHelper( clipPlanes[ 2 ], 11, 0x0000ff ) );//添加剪切面輔助線
-			scene.add( helpers );
-            helpers.visible=false;
-            gui.add(control,'helpers').name('輔助線').listen().onChange(function(value){
-                helpers.visible=value;
-            });
-
-			gui.add( control, 'clipIntersection' ).name( '交集/差集' ).onChange( function ( value ) {
-                mesh.material.clipIntersection = value;
-			} );
-            
-            gui.add( control, 'planeConstant', -5.5, 5.5 ).step( 0.1 ).name( '模型裁切相交點' ).onChange( function ( value ) {
-
-            for ( let j = 0; j < clipPlanes.length; j ++ ) {
-
-                clipPlanes[ j ].constant = value;
-                
-                }
-            } );
-
-       ////
-            const bvhGeometry = geometry.clone();
-            bvhGeometry.computeBoundsTree();//計算BVH
-            const bvhMaterial = new THREE.MeshBasicMaterial( { color: 0xff0000 } );
-            let bvhMesh = new THREE.Mesh( bvhGeometry, bvhMaterial );
-            bvhMesh.rotation.set(4.5, 0, 1);//模型旋轉初始位置
-            helper = new MeshBVHVisualizer(bvhMesh,control.helperDepth);
-			helper.color.set( 0xE91E63 );
-            helper.visible=false;
-			scene.add( helper );
-            gui.add(control,'displayhelper').name("BVH輔助線").onChange(function(value) {
-                helper.visible=value;
-            });
-            gui.add( control, 'helperDepth', 1, 20, 1 ).step(1).name('輔助線深度').onChange( function(value) {
-                helper.depth = parseInt(value);
-                helper.update();
-            });
-            //指示線
-            let raycaster;
-            raycaster = new THREE.Raycaster();
-            const intersection = {
-				intersects: false,
-				point: new THREE.Vector3(),
-				normal: new THREE.Vector3()
-			};
-            const intersects = [];
-            const mouse = new THREE.Vector2();
-            let mouseHelper;
-            mouseHelper = new THREE.Mesh( new THREE.BoxGeometry( 0.01, 0.01, 10 ), new THREE.MeshBasicMaterial() );
-			mouseHelper.visible = true;
-			scene.add( mouseHelper );
-            window.addEventListener( 'pointermove', onPointerMove );
-            function onPointerMove( event ) {
-            if ( event.isPrimary ) {
-                checkIntersection( event.clientX, event.clientY );
-                }
-            } 
-            //擷取移動資訊移動指示線
-            function checkIntersection( x, y ) {
-            if ( mesh === undefined ) return;
-                mouse.x = ( x / window.innerWidth ) * 2 - 1;
-                mouse.y = - ( y / window.innerHeight ) * 2 + 1;
-                raycaster.setFromCamera( mouse, camera );
-                raycaster.intersectObject( mesh, false, intersects );
-            if ( intersects.length > 0 ) {
-                const p = intersects[ 0 ].point;
-                mouseHelper.position.copy( p );
-                intersection.point.copy( p );
-                const n = intersects[ 0 ].face.normal.clone();
-                n.transformDirection( mesh.matrixWorld );
-                n.multiplyScalar( 10 );
-                n.add( intersects[ 0 ].point );
-                intersection.normal.copy( intersects[ 0 ].face.normal );
-                mouseHelper.lookAt( n );
-                //const positions = mesh.geometry.attributes.position;
-                //positions.setXYZ( 0, p.x, p.y, p.z );
-                //positions.setXYZ( 1, n.x, n.y, n.z );
-                //positions.needsUpdate = true;
-                intersection.intersects = true;
-                intersects.length = 0;
-                } else {
-                    intersection.intersects = false;
-                }
-            
-            }
-            window.addEventListener( 'resize', onWindowResize );
-            function onWindowResize() {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize( window.innerWidth, window.innerHeight );
-            }
-        }
-        //繪製模型end
-    </script>
+    <script type="module" src="main.js"></script>
 </body>
 </html>
